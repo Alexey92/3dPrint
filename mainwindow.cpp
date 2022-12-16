@@ -14,17 +14,12 @@
 #define ASCII_CR        13
 #define ASCII_SPACE     32
 
-int GX_COORD, GY_COORD, GZ_COORD;
-int GX_COORD_MAX = 1600, GY_COORD_MAX = 1600, GZ_COORD_MAX = 50;
-int GX_COORD_MIN = 0, GY_COORD_MIN = 0, GZ_COORD_MIN = 2;
 
 int G_SMALL_STEP = 1, G_BIG_STEP = 10;
 
 QSerialPort serial;
-
-int g_snd_cnt = 0, g_get_cnt = 0;
 QUdpSocket *socket;
-
+Platform_Control current_platform;
 
 bool gf_centering = false;
 
@@ -46,6 +41,17 @@ MainWindow::MainWindow(QWidget *parent)
     tmr->start(); // Запускаем таймер
 
     ui->button_serial_disconnect->setDisabled(true);
+    ui->button_up->setDisabled(true);
+    ui->button_down->setDisabled(true);
+    ui->button_left->setDisabled(true);
+    ui->button_right->setDisabled(true);
+    ui->button_double_up->setDisabled(true);
+    ui->button_double_down->setDisabled(true);
+    ui->button_double_left->setDisabled(true);
+    ui->button_double_right->setDisabled(true);
+    ui->button_z_up->setDisabled(true);
+    ui->button_z_down->setDisabled(true);
+    ui->button_center->setDisabled(true);
 
 
     ui->comboBox_small_step->addItem("0.1 mm");
@@ -65,7 +71,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::updateTime()
 {
-    ui->label_coord->setText("X: " + QString::number(GX_COORD) + " Y: " + QString::number(GY_COORD));
+    ui->label_coord->setText("X: " + QString::number(current_platform.Axis_x.get_value()) +
+                             " Y: " + QString::number(current_platform.Axis_y.get_value()) +
+                             " Z: " + QString::number(current_platform.Axis_z.get_value()));
 }
 
 void MainWindow::on_button_serial_update_clicked()
@@ -80,6 +88,7 @@ void MainWindow::on_button_serial_update_clicked()
 void MainWindow::udp_read_data(void)
     {
     QByteArray array;
+    static int get_cnt = 0;
 
     int cnt_of_c;
     int cx_coord[10], cy_coord[10];
@@ -176,12 +185,11 @@ void MainWindow::udp_read_data(void)
 
             ui->label_4->setText("cx_coord: " + QString::number(cx_coord[0]) + "| delta_x: " + QString::number(delta_x));
 
-            move_relative(delta_y, delta_x);
+//            move_relative(delta_y, delta_x);
         }
 
-//        qDebug()<<array.data();
 
-        ui->label_stat->setText("Send: " + QString::number(g_snd_cnt) + "| Get: " + QString::number(++g_get_cnt));
+        ui->label_stat->setText("Get: " + QString::number(++get_cnt));
         }
     }
 
@@ -205,25 +213,10 @@ void MainWindow::on_button_open_socket_clicked()
     }
 }
 
-void MainWindow::on_button_send_udp_clicked()
-{
-    QByteArray msg = "Hello world";
-
-    // Отправка на определенный IP, writeDatagram успешно возвращает количество байтов, иначе -1
-    QHostAddress serverAddress = QHostAddress("127.0.0.1");
-
-    if(socket->writeDatagram(msg.data(), msg.size(), serverAddress, 4000) > 0)
-        {
-        qDebug()<<"send ok";
-        ui->label_stat->setText("Send: " + QString::number(++g_snd_cnt) + "| Get: " + QString::number(g_get_cnt));
-        }
-    else    qDebug()<<socket->error();
-}
 
 void MainWindow::on_button_serial_clicked()
 {
-    ui->button_serial_disconnect->setEnabled(true);
-    ui->button_serial->setDisabled(true);
+    bool res = true;
 
     //select name for our serial port from combobox
     if (serial.portName() != ui->comboBox->currentText())
@@ -238,17 +231,47 @@ void MainWindow::on_button_serial_clicked()
     serial.setParity(QSerialPort::NoParity);
     serial.setStopBits(QSerialPort::OneStop);
     serial.setFlowControl(QSerialPort::NoFlowControl);
-    serial.open(QSerialPort::WriteOnly);
+    res = serial.open(QSerialPort::WriteOnly);
 
-//    to_home();
-    move_z(6);
-    move_abs(1000, 1000);
+    if (res)
+    {
+        ui->button_serial_disconnect->setEnabled(true);
+        ui->button_serial->setDisabled(true);
+
+        ui->button_up->setEnabled(true);
+        ui->button_down->setEnabled(true);
+        ui->button_left->setEnabled(true);
+        ui->button_right->setEnabled(true);
+        ui->button_double_up->setEnabled(true);
+        ui->button_double_down->setEnabled(true);
+        ui->button_double_left->setEnabled(true);
+        ui->button_double_right->setEnabled(true);
+        ui->button_z_up->setEnabled(true);
+        ui->button_z_down->setEnabled(true);
+        ui->button_center->setEnabled(true);
+
+//        current_platform.to_home();
+        current_platform.move_abs(1000, 1000, 6);
+    }
+    else ui->label_4->setText("Connect Error!");
 }
 
 void MainWindow::on_button_serial_disconnect_clicked()
 {
     ui->button_serial_disconnect->setDisabled(true);
     ui->button_serial->setEnabled(true);
+
+    ui->button_up->setDisabled(true);
+    ui->button_down->setDisabled(true);
+    ui->button_left->setDisabled(true);
+    ui->button_right->setDisabled(true);
+    ui->button_double_up->setDisabled(true);
+    ui->button_double_down->setDisabled(true);
+    ui->button_double_left->setDisabled(true);
+    ui->button_double_right->setDisabled(true);
+    ui->button_z_up->setDisabled(true);
+    ui->button_z_down->setDisabled(true);
+    ui->button_center->setDisabled(true);
 
     serial.close();
 }
@@ -265,48 +288,45 @@ void MainWindow::on_button_serial_write_clicked()
 }
 
 
-
-
-
 void MainWindow::on_button_up_clicked()
 {
-    move_relative(0, G_SMALL_STEP);
+    current_platform.move_relative(0, G_SMALL_STEP, 0);
 }
 
 
 void MainWindow::on_button_left_clicked()
 {
-    move_relative(-G_SMALL_STEP, 0);
+    current_platform.move_relative(-G_SMALL_STEP, 0, 0);
 }
 
 void MainWindow::on_button_right_clicked()
 {
-    move_relative(G_SMALL_STEP, 0);
+    current_platform.move_relative(G_SMALL_STEP, 0, 0);
 }
 
 void MainWindow::on_button_down_clicked()
 {
-    move_relative(0, -G_SMALL_STEP);
+    current_platform.move_relative(0, -G_SMALL_STEP, 0);
 }
 
 void MainWindow::on_button_double_up_clicked()
 {
-    move_relative(0, G_BIG_STEP);
+    current_platform.move_relative(0, G_BIG_STEP, 0);
 }
 
 void MainWindow::on_button_double_left_clicked()
 {
-    move_relative(-G_BIG_STEP, 0);
+    current_platform.move_relative(-G_BIG_STEP, 0, 0);
 }
 
 void MainWindow::on_button_double_right_clicked()
 {
-    move_relative(G_BIG_STEP, 0);
+    current_platform.move_relative(G_BIG_STEP, 0, 0);
 }
 
 void MainWindow::on_button_double_down_clicked()
 {
-    move_relative(0, -G_BIG_STEP);
+    current_platform.move_relative(0, -G_BIG_STEP, 0);
 }
 
 
@@ -349,22 +369,10 @@ void MainWindow::on_button_center_clicked()
 
 void MainWindow::on_button_z_down_clicked()
 {
-    to_relative_coord();
-
-    QString cmd;
-
-    cmd = QString("\nG0 Z-1\n");
-
-    serial.write(cmd.toUtf8());
+    current_platform.move_relative(0, 0, -1);
 }
 
 void MainWindow::on_button_z_up_clicked()
 {
-    to_relative_coord();
-
-    QString cmd;
-
-    cmd = QString("\nG0 Z1\n");
-
-    serial.write(cmd.toUtf8());
+    current_platform.move_relative(0, 0, 1);
 }

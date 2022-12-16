@@ -27,19 +27,6 @@
      <string>Open Socket</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="button_send_udp">
-    <property name="geometry">
-     <rect>
-      <x>120</x>
-      <y>51</y>
-      <width>93</width>
-      <height>28</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Send UDP</string>
-    </property>
-   </widget>
    <widget class="QLabel" name="label">
     <property name="geometry">
      <rect>

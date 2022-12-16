@@ -1,85 +1,123 @@
 #include "move_platform.h"
 
-extern int GX_COORD, GY_COORD, GZ_COORD;
-extern int GX_COORD_MAX, GY_COORD_MAX, GZ_COORD_MAX;
-extern int GX_COORD_MIN, GY_COORD_MIN, GZ_COORD_MIN;
 
-extern int G_SMALL_STEP, G_BIG_STEP;
+//extern int G_SMALL_STEP, G_BIG_STEP;
 
-extern QSerialPort serial;
 
-void move_abs(int x_coord, int y_coord)
+Axis::Axis(int value, int max, int min)
 {
-    if (x_coord > GX_COORD_MAX || x_coord < GX_COORD_MIN) return;
-    if (y_coord > GY_COORD_MAX || y_coord < GY_COORD_MIN) return;
+    current_value = value;
+    max_value = max;
+    min_value = min;
+}
 
-    GX_COORD = x_coord;
-    GY_COORD = y_coord;
+bool Axis::set_value(int value)
+{
+    bool res = true;
+
+    if (value > max_value || value < min_value)
+        res = false;
+    else
+        current_value = value;
+
+    return res;
+}
+
+bool Axis::add_value(int value)
+{
+    bool res = true;
+    int old_value = current_value;
+    int new_value = current_value + value;
+
+    if (new_value > max_value || new_value < min_value)
+    {
+        res = false;
+        current_value = old_value;
+//        qDebug()<<"move over x axis: " + QString::number(GX_COORD) + " + " + QString::number(x_coord);
+    }
+    else
+        current_value = new_value;
+
+    return res;
+}
+
+int Axis::get_value(void)
+{
+    return current_value;
+}
+
+void Platform_Control::to_abs_coord(void)
+{
+    QString str = "\nG90\n";
+    serial.write(str.toUtf8());
+
+    return;
+}
+
+void Platform_Control::move_abs(int x, int y, int z)
+{
+    if (Axis_x.set_value(x) == false) return;
+    if (Axis_y.set_value(y) == false) return;
+    if (Axis_z.set_value(z) == false) return;
 
     to_abs_coord();
 
     QString cmd;
 
-    cmd = QString("\nG0 X%1.%2 Y%3.%4\n").arg(x_coord/10).arg(x_coord%10).arg(y_coord/10).arg(y_coord/10);
+    cmd = QString("\nG0 X%1.%2 Y%3.%4 Z%5\n").arg(x/10).arg(x%10).arg(y/10).arg(y%10).arg(z);
 
     serial.write(cmd.toUtf8());
 
     return;
 }
 
-void move_relative(int x_coord, int y_coord)
+void Platform_Control::move_relative(int x, int y, int z)
 {
-    GX_COORD += x_coord;
-    if (GX_COORD > GX_COORD_MAX || GX_COORD < GX_COORD_MIN)
-    {
-//        qDebug()<<"move over x axis: " + QString::number(GX_COORD) + " + " + QString::number(x_coord);
-        GX_COORD -= x_coord;
-        return;
-    }
-
-    GY_COORD += y_coord;
-    if (GY_COORD > GY_COORD_MAX || GY_COORD < GY_COORD_MIN)
-    {
-//        qDebug()<<"move over y axis: " + QString::number(GY_COORD) + " + " + QString::number(y_coord);
-        GY_COORD_MAX -= y_coord;
-        return;
-    }
-
+    if (Axis_x.add_value(x) == false) return;
+    if (Axis_y.add_value(y) == false) return;
+    if (Axis_z.add_value(z) == false) return;
 
     to_relative_coord();
 
     QString cmd = "\nG0 ";
 
-    if (x_coord != 0)
+    if (x != 0)
     {
         cmd.append("X");
-        if (x_coord < 0) cmd.append("-");
-        x_coord = abs(x_coord);
+        if (x < 0) cmd.append("-");
+        x = abs(x);
 
-        cmd.append(QString::number(x_coord/10));
+        cmd.append(QString::number(x/10));
 
-        if (x_coord%10 != 0)
+        if (x%10 != 0)
         {
             cmd.append(".");
-            cmd.append(QString::number(x_coord%10));
+            cmd.append(QString::number(x%10));
         }
 
     }
 
-    if (y_coord != 0)
+    if (y != 0)
     {
         cmd.append(" Y");
-        if (y_coord < 0) cmd.append("-");
-        y_coord = abs(y_coord);
+        if (y < 0) cmd.append("-");
+        y = abs(y);
 
-        cmd.append(QString::number(y_coord/10));
+        cmd.append(QString::number(y/10));
 
-        if (y_coord%10 != 0)
+        if (y%10 != 0)
         {
             cmd.append(".");
-            cmd.append(QString::number(y_coord%10));
+            cmd.append(QString::number(y%10));
         }
     }
+
+    if (z != 0)
+    {
+        cmd.append(" Z");
+        cmd.append(QString::number(z));
+    }
+
     cmd.append("\n");
 
 //    qDebug()<<cmd;
@@ -92,35 +130,8 @@ void move_relative(int x_coord, int y_coord)
     return;
 }
 
-void move_z(int z_coord)
-{
-    if (z_coord > GZ_COORD_MAX || z_coord < GZ_COORD_MIN)
-    {
-        return;
-    }
 
-    GZ_COORD = z_coord;
-
-    to_abs_coord();
-
-    QString cmd;
-
-    cmd = QString("\nG0 Z%1\n").arg(z_coord);
-
-    serial.write(cmd.toUtf8());
-
-    return;
-}
-
-void to_abs_coord(void)
-{
-    QString str = "\nG90\n";
-    serial.write(str.toUtf8());
-
-    return;
-}
-
-void to_relative_coord(void)
+void Platform_Control::to_relative_coord(void)
 {
     QString str = "\nG91\n";
     serial.write(str.toUtf8());
@@ -129,7 +140,7 @@ void to_relative_coord(void)
 }
 
 
-void to_home(void)
+void Platform_Control::to_home(void)
 {
     QString str = "\nG28 X Y\n";
     serial.write(str.toUtf8());
