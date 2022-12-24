@@ -10,11 +10,14 @@
 #include <QTime>
 
 #include "move_platform.h"
+#include "capacitors.h"
+
 
 
 QSerialPort serial;
 QUdpSocket *socket;
 Platform_Control current_platform;
+Capacitors caps;
 
 bool gf_centering = false;
 
@@ -91,32 +94,24 @@ void MainWindow::udp_read_data(void)
     QByteArray array;
     QString coords_string;
     static int get_cnt = 0;
-    int nmb_of_c;
+    int nmb_of_caps;
 
-    int delta_x, delta_y;
+    QByteArray a;
+    QTextStream myteststream(&a);
+
 
     // pendingDatagramSize - размер первого сообщения, ожидающего чтения. Функция resize нормализует размер массива в соответствии с размером параметра.
     // Введите в array.data () данные, которые не превышают размер array.size (), а array.data () возвращает указатель на расположение данных, хранящихся в байтовом массиве
     while(socket->hasPendingDatagrams())
         {
-//        qDebug()<<"get data";
 
         array.resize(socket->pendingDatagramSize());
         socket->readDatagram(array.data(), array.size());
 
-        QTextStream myteststream(&array);
-
-
-        myteststream >> nmb_of_c;
-
-        for (int i = 0; i < nmb_of_c; i++)
-            {
-            myteststream >> cx_coord[i] >> cy_coord[i];
-
-            coords_string.append("x = " + QString::number(cx_coord[i]) + "; y = " + QString::number(cy_coord[i]) + "\n");
-            }
+        nmb_of_caps = caps.parse_coords_from_string(&array, &coords_string);
 
         ui->label_c_coords->setText(coords_string);
+
 
 //        static int cnt_without_data = 0;
 
@@ -128,20 +123,22 @@ void MainWindow::udp_read_data(void)
 //            cnt_of_c = 0;
 //        }
 //
-        if (gf_centering && nmb_of_c > 0)
+        if (gf_centering && nmb_of_caps > 0)
         {
-            delta_x = cx_coord[0] - 310;
-            delta_y = cy_coord[0] - 200;
+            caps.to_center.x = caps.focus_cap.x - 320;
+            caps.to_center.y = caps.focus_cap.y - 240;
+//            delta_x = cx_coord[0] - 310;
+//            delta_y = cy_coord[0] - 200;
 
-            if (delta_x > 10) delta_x = 1;
-            else if (delta_x < -10) delta_x = -1;
-            else delta_x = 0;
+            if (caps.to_center.x > 10) caps.to_center.x = 1;
+            else if (caps.to_center.x < -10) caps.to_center.x = -1;
+            else caps.to_center.x = 0;
 
-            if (delta_y > 10) delta_y = 1;
-            else if (delta_y < -10) delta_y = -1;
-            else delta_y = 0;
+            if (caps.to_center.y > 10) caps.to_center.y = 1;
+            else if (caps.to_center.y < -10) caps.to_center.y = -1;
+            else caps.to_center.y = 0;
 
-            ui->label_4->setText("cx_coord: " + QString::number(cx_coord[0]) + "| delta_x: " + QString::number(delta_x));
+//            ui->label_4->setText("cx_coord: " + QString::number(cx_coord[0]) + "| delta_x: " + QString::number(delta_x));
 
 //            move_relative(delta_y, delta_x);
         }
