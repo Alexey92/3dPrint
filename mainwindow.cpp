@@ -11,11 +11,6 @@
 
 #include "move_platform.h"
 
-#define ASCII_CR        13
-#define ASCII_SPACE     32
-
-
-int G_SMALL_STEP = 1, G_BIG_STEP = 10;
 
 QSerialPort serial;
 QUdpSocket *socket;
@@ -30,16 +25,27 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    // Настройка comboBox с com портами
     ui->comboBox->clear();
-
     foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts())
         ui->comboBox->addItem(info.portName());
 
+    // Настройка comboBox с выбором шагов перемещения платформы
+    ui->comboBox_small_step->addItem("0.1 mm");
+    ui->comboBox_small_step->addItem("0.5 mm");
+    ui->comboBox_small_step->addItem("1.0 mm");
+
+    ui->comboBox_big_step->addItem("1 mm");
+    ui->comboBox_big_step->addItem("5 mm");
+    ui->comboBox_big_step->addItem("10 mm");
+
+    // Настройка таймера
     tmr = new QTimer(this); // Создаем объект класса QTimer и передаем адрес переменной
-    tmr->setInterval(1000); // Задаем интервал таймера
+    tmr->setInterval(500); // Задаем интервал таймера
     connect(tmr, SIGNAL(timeout()), this, SLOT(updateTime())); // Подключаем сигнал таймера к нашему слоту
     tmr->start(); // Запускаем таймер
 
+    // Отключение неактивных в начале программы кнопок
     ui->button_serial_disconnect->setDisabled(true);
     ui->button_up->setDisabled(true);
     ui->button_down->setDisabled(true);
@@ -52,15 +58,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->button_z_up->setDisabled(true);
     ui->button_z_down->setDisabled(true);
     ui->button_center->setDisabled(true);
-
-
-    ui->comboBox_small_step->addItem("0.1 mm");
-    ui->comboBox_small_step->addItem("0.5 mm");
-    ui->comboBox_small_step->addItem("1.0 mm");
-
-    ui->comboBox_big_step->addItem("1 mm");
-    ui->comboBox_big_step->addItem("5 mm");
-    ui->comboBox_big_step->addItem("10 mm");
 }
 
 
@@ -69,6 +66,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+// Обновление строки с текущими координатами
 void MainWindow::updateTime()
 {
     ui->label_coord->setText("X: " + QString::number(current_platform.Axis_x.get_value()) +
@@ -76,6 +74,7 @@ void MainWindow::updateTime()
                              " Z: " + QString::number(current_platform.Axis_z.get_value()));
 }
 
+// Обновление списка com портов
 void MainWindow::on_button_serial_update_clicked()
 {
     ui->comboBox->clear();
@@ -84,14 +83,16 @@ void MainWindow::on_button_serial_update_clicked()
         ui->comboBox->addItem(info.portName());
 }
 
-// ------------ Считать данные, отправленные сервером ------------- //
+int cx_coord[10], cy_coord[10];
+
+// Чтение UDP пакета от LABVIEW
 void MainWindow::udp_read_data(void)
     {
     QByteArray array;
+    QString coords_string;
     static int get_cnt = 0;
+    int nmb_of_c;
 
-    int cnt_of_c;
-    int cx_coord[10], cy_coord[10];
     int delta_x, delta_y;
 
     // pendingDatagramSize - размер первого сообщения, ожидающего чтения. Функция resize нормализует размер массива в соответствии с размером параметра.
@@ -103,74 +104,31 @@ void MainWindow::udp_read_data(void)
         array.resize(socket->pendingDatagramSize());
         socket->readDatagram(array.data(), array.size());
 
+        QTextStream myteststream(&array);
 
-        static int cnt_without_data = 0;
-        if (array.at(0) != ASCII_CR)
-        {
-            cnt_without_data = 0;
-//            ui->label_c_coords->setText(array.data());
 
-            int symb_nbm = 2;
+        myteststream >> nmb_of_c;
 
-            if (array.at(1) == ASCII_SPACE)
+        for (int i = 0; i < nmb_of_c; i++)
             {
-                cnt_of_c = array.at(0) - 48; // ASCII numeric
+            myteststream >> cx_coord[i] >> cy_coord[i];
 
-                for (int i = 0; i < cnt_of_c; i++)
-                {
-                    // X
-                    if (array.at(symb_nbm + 1) == ASCII_SPACE)
-                    {
-                        cx_coord[i] = array.at(symb_nbm) - 48;
-                        symb_nbm+= 2;
-                    }
-                    else if (array.at(symb_nbm + 2) == ASCII_SPACE)
-                    {
-                        cx_coord[i] = (array.at(symb_nbm) - 48) * 10 + (array.at(symb_nbm + 1) - 48);
-                        symb_nbm+= 3;
-                    }
-                    else if (array.at(symb_nbm + 3) == ASCII_SPACE)
-                    {
-                        cx_coord[i] = (array.at(symb_nbm) - 48) * 100 + (array.at(symb_nbm + 1) - 48) * 10 + (array.at(symb_nbm + 2) - 48);
-                        symb_nbm+= 4;
-                    }
-                    else qDebug()<<"get data ERROR";
-
-
-                    // Y
-                    if (array.at(symb_nbm + 1) == ASCII_SPACE)
-                    {
-                        cy_coord[i] = array.at(symb_nbm) - 48;
-                        symb_nbm+= 2;
-                    }
-                    else if (array.at(symb_nbm + 2) == ASCII_SPACE)
-                    {
-                        cy_coord[i] = (array.at(symb_nbm) - 48) * 10 + (array.at(symb_nbm + 1) - 48);
-                        symb_nbm+= 3;
-                    }
-                    else if (array.at(symb_nbm + 3) == ASCII_SPACE)
-                    {
-                        cy_coord[i] = (array.at(symb_nbm) - 48) * 100 + (array.at(symb_nbm + 1) - 48) * 10 + (array.at(symb_nbm + 2) - 48);
-                        symb_nbm+= 4;
-                    }
-                    else qDebug()<<"get data ERROR";
-
-
-                    ui->label_c_coords->setText("X: "+ QString::number(cx_coord[i]) + " Y: " + QString::number(cy_coord[i]) + "\n");
-                }
+            coords_string.append("x = " + QString::number(cx_coord[i]) + "; y = " + QString::number(cy_coord[i]) + "\n");
             }
-            else ui->label_c_coords->setText("Too much data");
-        }
-        else cnt_without_data++;
 
-        if (cnt_without_data > 1000)
-        {
-            ui->label_c_coords->setText("No data");
-            cnt_without_data = 1000;
-            cnt_of_c = 0;
-        }
+        ui->label_c_coords->setText(coords_string);
+
+//        static int cnt_without_data = 0;
+
+
+//        if (cnt_without_data > 1000)
+//        {
+//            ui->label_c_coords->setText("No data");
+//            cnt_without_data = 1000;
+//            cnt_of_c = 0;
+//        }
 //
-        if (gf_centering && cnt_of_c > 0)
+        if (gf_centering && nmb_of_c > 0)
         {
             delta_x = cx_coord[0] - 310;
             delta_y = cy_coord[0] - 200;
@@ -193,8 +151,10 @@ void MainWindow::udp_read_data(void)
         }
     }
 
+// Открытие соккета
 void MainWindow::on_button_open_socket_clicked()
 {
+    ui->button_open_socket->setDisabled(true);
     socket = new QUdpSocket(this);
 
     // Отслеживаем, есть ли данные, поступающие в виде сигналов и слотов. Сигнал readyRead () срабатывает при появлении новых данных.
@@ -213,7 +173,7 @@ void MainWindow::on_button_open_socket_clicked()
     }
 }
 
-
+// Подключение к 3D принтеру по com порту
 void MainWindow::on_button_serial_clicked()
 {
     bool res = true;
@@ -256,6 +216,7 @@ void MainWindow::on_button_serial_clicked()
     else ui->label_4->setText("Connect Error!");
 }
 
+// Отключение от 3D принтера
 void MainWindow::on_button_serial_disconnect_clicked()
 {
     ui->button_serial_disconnect->setDisabled(true);
@@ -276,83 +237,80 @@ void MainWindow::on_button_serial_disconnect_clicked()
     serial.close();
 }
 
-void MainWindow::on_button_serial_write_clicked()
-{
-    QString str = "\nG0 X20 Y30\n";
-
-    serial.write(str.toUtf8());
-
-    str = "\nG0 X30 Y20\n";
-
-    serial.write(str.toUtf8());
-}
-
-
+// Функции управления положением платформы
 void MainWindow::on_button_up_clicked()
 {
-    current_platform.move_relative(0, G_SMALL_STEP, 0);
+    current_platform.move_relative(0, current_platform.step_small_get(), 0);
 }
-
 
 void MainWindow::on_button_left_clicked()
 {
-    current_platform.move_relative(-G_SMALL_STEP, 0, 0);
+    current_platform.move_relative(-current_platform.step_small_get(), 0, 0);
 }
 
 void MainWindow::on_button_right_clicked()
 {
-    current_platform.move_relative(G_SMALL_STEP, 0, 0);
+    current_platform.move_relative(current_platform.step_small_get(), 0, 0);
 }
 
 void MainWindow::on_button_down_clicked()
 {
-    current_platform.move_relative(0, -G_SMALL_STEP, 0);
+    current_platform.move_relative(0, -current_platform.step_small_get(), 0);
 }
 
 void MainWindow::on_button_double_up_clicked()
 {
-    current_platform.move_relative(0, G_BIG_STEP, 0);
+    current_platform.move_relative(0, current_platform.step_big_get(), 0);
 }
 
 void MainWindow::on_button_double_left_clicked()
 {
-    current_platform.move_relative(-G_BIG_STEP, 0, 0);
+    current_platform.move_relative(-current_platform.step_big_get(), 0, 0);
 }
 
 void MainWindow::on_button_double_right_clicked()
 {
-    current_platform.move_relative(G_BIG_STEP, 0, 0);
+    current_platform.move_relative(current_platform.step_big_get(), 0, 0);
 }
 
 void MainWindow::on_button_double_down_clicked()
 {
-    current_platform.move_relative(0, -G_BIG_STEP, 0);
+    current_platform.move_relative(0, -current_platform.step_big_get(), 0);
 }
 
+void MainWindow::on_button_z_down_clicked()
+{
+    current_platform.move_relative(0, 0, -1);
+}
 
+void MainWindow::on_button_z_up_clicked()
+{
+    current_platform.move_relative(0, 0, 1);
+}
 
+// Выбор длины "маленького шага" из comboBox
 void MainWindow::on_comboBox_small_step_currentIndexChanged(int index)
 {
     switch (index) {
-        case 0: G_SMALL_STEP = 1; break;
-        case 1: G_SMALL_STEP = 5; break;
-        case 2: G_SMALL_STEP = 10; break;
-        default:G_SMALL_STEP = 1; break;
+        case 0: current_platform.step_small_set(1);     break;
+        case 1: current_platform.step_small_set(5);     break;
+        case 2: current_platform.step_small_set(10);    break;
+        default:current_platform.step_small_set(1);     break;
     }
 }
 
+// Выбор длины "большого шага" из comboBox
 void MainWindow::on_comboBox_big_step_currentIndexChanged(int index)
 {
     switch (index) {
-        case 0: G_BIG_STEP = 10; break;
-        case 1: G_BIG_STEP = 50; break;
-        case 2: G_BIG_STEP = 100; break;
-        default:G_BIG_STEP = 10; break;
+        case 0: current_platform.step_big_set(10);  break;
+        case 1: current_platform.step_big_set(50);  break;
+        case 2: current_platform.step_big_set(100); break;
+        default:current_platform.step_big_set(10);  break;
     }
 }
 
-
-
+// Включение/выключение режима центровки конденсатора по изображению
 void MainWindow::on_button_center_clicked()
 {
     if (gf_centering)
@@ -367,12 +325,3 @@ void MainWindow::on_button_center_clicked()
     }
 }
 
-void MainWindow::on_button_z_down_clicked()
-{
-    current_platform.move_relative(0, 0, -1);
-}
-
-void MainWindow::on_button_z_up_clicked()
-{
-    current_platform.move_relative(0, 0, 1);
-}

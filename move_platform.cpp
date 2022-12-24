@@ -1,9 +1,6 @@
 #include "move_platform.h"
 
-
-//extern int G_SMALL_STEP, G_BIG_STEP;
-
-
+// Конструктор для задания объекта одной оси
 Axis::Axis(int value, int max, int min)
 {
     current_value = value;
@@ -11,6 +8,7 @@ Axis::Axis(int value, int max, int min)
     min_value = min;
 }
 
+// Задание значения
 bool Axis::set_value(int value)
 {
     bool res = true;
@@ -23,6 +21,7 @@ bool Axis::set_value(int value)
     return res;
 }
 
+// Прибавление к текущему значению
 bool Axis::add_value(int value)
 {
     bool res = true;
@@ -41,11 +40,37 @@ bool Axis::add_value(int value)
     return res;
 }
 
+// Чтение значения
 int Axis::get_value(void)
 {
     return current_value;
 }
 
+// Задание значения
+void Platform_Control::step_small_set(int value)
+{
+    step_small = value;
+}
+
+// Задание значения
+void Platform_Control::step_big_set(int value)
+{
+    step_big = value;
+}
+
+// Чтение значения
+int Platform_Control::step_small_get(void)
+{
+    return step_small;
+}
+
+// Чтение значения
+int Platform_Control::step_big_get(void)
+{
+    return step_big;
+}
+
+// Перевод платформы в режим задания абсолютных координат
 void Platform_Control::to_abs_coord(void)
 {
     QString str = "\nG90\n";
@@ -54,6 +79,16 @@ void Platform_Control::to_abs_coord(void)
     return;
 }
 
+// Перевод платформы в режим задания относительных координат
+void Platform_Control::to_relative_coord(void)
+{
+    QString str = "\nG91\n";
+    serial.write(str.toUtf8());
+
+    return;
+}
+
+// Перевод платформы по абсолютным координатам
 void Platform_Control::move_abs(int x, int y, int z)
 {
     if (Axis_x.set_value(x) == false) return;
@@ -71,6 +106,7 @@ void Platform_Control::move_abs(int x, int y, int z)
     return;
 }
 
+// Перевод платформы по относительным координатам
 void Platform_Control::move_relative(int x, int y, int z)
 {
     if (Axis_x.add_value(x) == false) return;
@@ -130,16 +166,7 @@ void Platform_Control::move_relative(int x, int y, int z)
     return;
 }
 
-
-void Platform_Control::to_relative_coord(void)
-{
-    QString str = "\nG91\n";
-    serial.write(str.toUtf8());
-
-    return;
-}
-
-
+// Перевод платформы "домой" по осям X и Y
 void Platform_Control::to_home(void)
 {
     QString str = "\nG28 X Y\n";

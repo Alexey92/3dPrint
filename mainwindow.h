@@ -20,7 +20,6 @@ private slots:
     void udp_read_data(void);
     void on_button_serial_clicked();
     void on_button_serial_disconnect_clicked();
-    void on_button_serial_write_clicked();
     void updateTime();
     void on_button_double_up_clicked();
     void on_button_up_clicked();
