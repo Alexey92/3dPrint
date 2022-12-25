@@ -169,7 +169,7 @@ void Platform_Control::move_relative(int x, int y, int z)
 // Перевод платформы "домой" по осям X и Y
 void Platform_Control::to_home(void)
 {
-    QString str = "\nG28 X Y\n";
+    QString str = "\nG28 X Y Z\n";
     serial.write(str.toUtf8());
 
     return;

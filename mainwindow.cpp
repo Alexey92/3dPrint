@@ -94,11 +94,6 @@ void MainWindow::udp_read_data(void)
     QByteArray array;
     QString coords_string;
     static int get_cnt = 0;
-    int nmb_of_caps;
-
-    QByteArray a;
-    QTextStream myteststream(&a);
-
 
     // pendingDatagramSize - размер первого сообщения, ожидающего чтения. Функция resize нормализует размер массива в соответствии с размером параметра.
     // Введите в array.data () данные, которые не превышают размер array.size (), а array.data () возвращает указатель на расположение данных, хранящихся в байтовом массиве
@@ -108,41 +103,12 @@ void MainWindow::udp_read_data(void)
         array.resize(socket->pendingDatagramSize());
         socket->readDatagram(array.data(), array.size());
 
-        nmb_of_caps = caps.parse_coords_from_string(&array, &coords_string);
+        caps.parse_coords_from_string(&array, &coords_string);
+
+        if (caps.state == S_CENTRING)
+            current_platform.move_relative(caps.move.y, caps.move.x, 0);
 
         ui->label_c_coords->setText(coords_string);
-
-
-//        static int cnt_without_data = 0;
-
-
-//        if (cnt_without_data > 1000)
-//        {
-//            ui->label_c_coords->setText("No data");
-//            cnt_without_data = 1000;
-//            cnt_of_c = 0;
-//        }
-//
-        if (gf_centering && nmb_of_caps > 0)
-        {
-            caps.to_center.x = caps.focus_cap.x - 320;
-            caps.to_center.y = caps.focus_cap.y - 240;
-//            delta_x = cx_coord[0] - 310;
-//            delta_y = cy_coord[0] - 200;
-
-            if (caps.to_center.x > 10) caps.to_center.x = 1;
-            else if (caps.to_center.x < -10) caps.to_center.x = -1;
-            else caps.to_center.x = 0;
-
-            if (caps.to_center.y > 10) caps.to_center.y = 1;
-            else if (caps.to_center.y < -10) caps.to_center.y = -1;
-            else caps.to_center.y = 0;
-
-//            ui->label_4->setText("cx_coord: " + QString::number(cx_coord[0]) + "| delta_x: " + QString::number(delta_x));
-
-//            move_relative(delta_y, delta_x);
-        }
-
 
         ui->label_stat->setText("Get: " + QString::number(++get_cnt));
         }
@@ -208,7 +174,7 @@ void MainWindow::on_button_serial_clicked()
         ui->button_center->setEnabled(true);
 
 //        current_platform.to_home();
-        current_platform.move_abs(1000, 1000, 6);
+        current_platform.move_abs(1000, 1000, 26);
     }
     else ui->label_4->setText("Connect Error!");
 }
@@ -310,15 +276,15 @@ void MainWindow::on_comboBox_big_step_currentIndexChanged(int index)
 // Включение/выключение режима центровки конденсатора по изображению
 void MainWindow::on_button_center_clicked()
 {
-    if (gf_centering)
+    if (caps.state == S_CENTRING)
     {
-        gf_centering = false;
+        caps.state = S_FINDING;
         ui->button_center->setText("Centering ON");
     }
-    else
+    else if (caps.state == S_FINDING)
     {
         ui->button_center->setText("Centering OFF");
-        gf_centering = true;
+        caps.state = S_CENTRING;
     }
 }
 
